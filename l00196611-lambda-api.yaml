@@ -1,0 +1,93 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Birthday Present Tracker API with dummy data
+
+Resources:
+  BirthdayPresentTrackerLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: BirthdayPresentTrackerLambdaExecutionRole
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+
+  BirthdayPresentTrackerLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      FunctionName: BirthdayPresentTrackerApiHandler
+      Runtime: python3.12
+      Handler: index.lambda_handler
+      Role: !GetAtt BirthdayPresentTrackerLambdaRole.Arn
+      Code:
+        ZipFile: |
+          import json
+
+          def lambda_handler(event, context):
+            dummy_data = [
+              {"id": 1, "name": "John", "birthday": "2025-10-16", "idea": "Cookbook", "link": ""},
+              {"id": 2, "name": "Joe", "birthday": "2025-10-15", "idea": "Baking book", "link": "https://www.example.com"}
+            ]
+            return {
+              "statusCode": 200,
+              "headers": {"Content-Type": "application/json"},
+              "body": json.dumps(dummy_data)
+            }
+  
+  BirthdayPresentTrackerApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: BirthdayPresentTrackerApi
+      Description: API returning dummy data
+      EndpointConfiguration:
+        Types: ["REGIONAL"]
+  
+  BirthdayPresentTrackerResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId: !Ref BirthdayPresentTrackerApi
+      ParentId: !GetAtt BirthdayPresentTrackerApi.RootResourceId
+      PathPart: birthdays
+  
+  BirthdayPresentTrackerGetMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref BirthdayPresentTrackerApi
+      ResourceId: !Ref BirthdayPresentTrackerResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BirthdayPresentTrackerLambda.Arn}/invocations
+  
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref BirthdayPresentTrackerLambda
+      Action: lambda:InvokeFunction
+      Principal: apigateway.amazonaws.com
+  
+  BirthdayPresentTrackerApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    DependsOn:
+      - BirthdayPresentTrackerGetMethod
+    Properties:
+      RestApiId: !Ref BirthdayPresentTrackerApi
+      StageName: Prod
+
+Outputs:
+  ApiEndpoint:
+    Description: "Endpoint URL for API"
+    Value: !Sub "https://${BirthdayPresentTrackerApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/birthdays"
+
+  
+
+
+
+
+  
