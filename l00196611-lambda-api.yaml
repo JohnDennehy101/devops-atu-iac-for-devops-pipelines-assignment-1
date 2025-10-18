@@ -1,7 +1,84 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Birthday Present Tracker API with dummy data
 
+Parameters:
+  DBUsername:
+    Description: Username used in interactions with RDS instance
+    Type: String
+    Default: admin
+  DBPassword:
+    Description: Password used for user to access RDS database instance
+    Type: String
+    NoEcho: true
+  DBName:
+    Description: Name of the RDS database
+    Type: String
+    Default: birthdayDb
+
+
 Resources:
+  BirthdayPresentTrackerVPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: 10.0.0.0/16
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+  
+  BirthdayPresentTrackerSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: eu-west-1a
+      VpcId: !Ref BirthdayPresentTrackerVPC
+      CidrBlock: 10.0.1.0/24
+      MapPublicIpOnLaunch: true
+  
+  BirthdayPresentTrackerSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: eu-west-1b
+      VpcId: !Ref BirthdayPresentTrackerVPC
+      CidrBlock: 10.0.2.0/24
+      MapPublicIpOnLaunch: true
+  
+  BirthdayPresentTrackerDBSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subnet group for Birthday Present Tracker RDS Instance
+      SubnetIds:
+        - !Ref BirthdayPresentTrackerSubnetA
+        - !Ref BirthdayPresentTrackerSubnetB
+  
+  BirthdayPresentTrackerSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Enable Lambda to connect to RDS
+      VpcId: !Ref BirthdayPresentTrackerVPC
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 3306
+          ToPort: 3306
+          CidrIp: 0.0.0.0/0
+  
+  BirthdayPresentTrackerRDSInstance:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      DBInstanceIdentifier: birthday-present-tracker-database
+      DBSubnetGroupName: !Ref BirthdayPresentTrackerDBSubnetGroup
+      AllocatedStorage: 20
+      DBInstanceClass: db.t3.micro
+      Engine: mysql
+      MasterUsername: !Ref DBUsername
+      MasterUserPassword: !Ref DBPassword
+      DBName: !Ref DBName
+      VPCSecurityGroups:
+        - !GetAtt BirthdayPresentTrackerSecurityGroup.GroupId
+      PubliclyAccessible: false
+      BackupRetentionPeriod: 1
+      DeletionProtection: false
+      MultiAZ: false
+  
   BirthdayPresentTrackerLambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -15,6 +92,7 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
 
   BirthdayPresentTrackerLambda:
     Type: AWS::Lambda::Function
@@ -23,26 +101,28 @@ Resources:
       Runtime: python3.12
       Handler: index.lambda_handler
       Role: !GetAtt BirthdayPresentTrackerLambdaRole.Arn
+      VpcConfig:
+        SubnetIds:
+          - !Ref BirthdayPresentTrackerSubnetA
+          - !Ref BirthdayPresentTrackerSubnetB
+        SecurityGroupIds:
+          - !GetAtt BirthdayPresentTrackerSecurityGroup.GroupId
+      Timeout: 15
+      Environment:
+        Variables:
+          DB_HOST: !GetAtt BirthdayPresentTrackerRDSInstance.Endpoint.Address
+          DB_NAME: !Ref DBName
+          DB_USER: !Ref DBUsername
+          DB_PASSWORD: !Ref DBPassword
       Code:
-        ZipFile: |
-          import json
-
-          def lambda_handler(event, context):
-            dummy_data = [
-              {"id": 1, "name": "John", "birthday": "2025-10-16", "idea": "Cookbook", "link": ""},
-              {"id": 2, "name": "Joe", "birthday": "2025-10-15", "idea": "Baking book", "link": "https://www.example.com"}
-            ]
-            return {
-              "statusCode": 200,
-              "headers": {"Content-Type": "application/json"},
-              "body": json.dumps(dummy_data)
-            }
-  
+        S3Bucket: birthday-present-tracker-lambda-deployment-bucket
+        S3Key: birthday_present_lambda.zip
+    
   BirthdayPresentTrackerApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
       Name: BirthdayPresentTrackerApi
-      Description: API returning dummy data
+      Description: API returning dummy data from db
       EndpointConfiguration:
         Types: ["REGIONAL"]
   
