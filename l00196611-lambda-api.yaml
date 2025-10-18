@@ -48,17 +48,74 @@ Resources:
         - !Ref BirthdayPresentTrackerSubnetA
         - !Ref BirthdayPresentTrackerSubnetB
   
-  BirthdayPresentTrackerSecurityGroup:
+  BirthdayPresentTrackerLambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
-      GroupDescription: Enable Lambda to connect to RDS
+      GroupDescription: Lambda security group with outbound access
       VpcId: !Ref BirthdayPresentTrackerVPC
-      SecurityGroupIngress:
-        - IpProtocol: tcp
-          FromPort: 3306
-          ToPort: 3306
-          CidrIp: 0.0.0.0/0
   
+  BirthdayPresentTrackerLambdaSecurityGroupEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      GroupId: !Ref BirthdayPresentTrackerLambdaSecurityGroup
+      IpProtocol: -1
+      CidrIp: 0.0.0.0/0
+  
+  BirthdayPresentTrackerRDSSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for RDS MySQL
+      VpcId: !Ref BirthdayPresentTrackerVPC
+  
+  BirthdayPresentTrackerRDSIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref BirthdayPresentTrackerRDSSecurityGroup
+      IpProtocol: tcp
+      FromPort: 3306
+      ToPort: 3306
+      SourceSecurityGroupId: !Ref BirthdayPresentTrackerLambdaSecurityGroup
+  
+  BirthdayPresentTrackerSecretsManagerEndpointSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Security Group for Secrets Manager VPC Endpoint
+      VpcId: !Ref BirthdayPresentTrackerVPC
+
+  
+  BirthdayPresentTrackerSecretsManagerIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref BirthdayPresentTrackerSecretsManagerEndpointSecurityGroup
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      SourceSecurityGroupId: !Ref BirthdayPresentTrackerLambdaSecurityGroup
+  
+  BirthdayPresentTrackerDBSecret:
+    Type: AWS::SecretsManager::Secret
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      Name: BirthdayPresentTrackerDBSecret
+      Description: RDS credentials for Birthday Present Tracker DB in use for API
+      SecretString: !Sub '{"username": "${DBUsername}", "password": "${DBPassword}", "dbname": "${DBName}"}'
+  
+  BirthdayPresentTrackerSecretsManagerEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      VpcId: !Ref BirthdayPresentTrackerVPC
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.secretsmanager
+      VpcEndpointType: Interface
+      PrivateDnsEnabled: true
+      SubnetIds:
+        - !Ref BirthdayPresentTrackerSubnetA
+        - !Ref BirthdayPresentTrackerSubnetB
+      SecurityGroupIds:
+        - !Ref BirthdayPresentTrackerSecretsManagerEndpointSecurityGroup
+    
   BirthdayPresentTrackerRDSInstance:
     Type: AWS::RDS::DBInstance
     DeletionPolicy: Delete
@@ -70,12 +127,13 @@ Resources:
       DBInstanceClass: db.t3.micro
       Engine: mysql
       MasterUsername: !Ref DBUsername
-      MasterUserPassword: !Ref DBPassword
+      MasterUserPassword: '{{resolve:secretsmanager:BirthdayPresentTrackerDBSecret:SecretString:password}}'
       DBName: !Ref DBName
       VPCSecurityGroups:
-        - !GetAtt BirthdayPresentTrackerSecurityGroup.GroupId
+        - !GetAtt BirthdayPresentTrackerRDSSecurityGroup.GroupId
       PubliclyAccessible: false
-      BackupRetentionPeriod: 1
+      # This is disabled for quicker testing
+      BackupRetentionPeriod: 0
       DeletionProtection: false
       MultiAZ: false
   
@@ -93,6 +151,16 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
         - arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole
+      Policies:
+        - PolicyName: LambdaSecretsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - secretsmanager:GetSecretValue
+                Resource: !Ref BirthdayPresentTrackerDBSecret
+
 
   BirthdayPresentTrackerLambda:
     Type: AWS::Lambda::Function
@@ -106,14 +174,12 @@ Resources:
           - !Ref BirthdayPresentTrackerSubnetA
           - !Ref BirthdayPresentTrackerSubnetB
         SecurityGroupIds:
-          - !GetAtt BirthdayPresentTrackerSecurityGroup.GroupId
+          - !Ref BirthdayPresentTrackerLambdaSecurityGroup
       Timeout: 15
       Environment:
         Variables:
           DB_HOST: !GetAtt BirthdayPresentTrackerRDSInstance.Endpoint.Address
-          DB_NAME: !Ref DBName
-          DB_USER: !Ref DBUsername
-          DB_PASSWORD: !Ref DBPassword
+          DB_SECRET_NAME: !Ref BirthdayPresentTrackerDBSecret
       Code:
         S3Bucket: birthday-present-tracker-lambda-deployment-bucket
         S3Key: birthday_present_lambda.zip
@@ -158,16 +224,9 @@ Resources:
       - BirthdayPresentTrackerGetMethod
     Properties:
       RestApiId: !Ref BirthdayPresentTrackerApi
-      StageName: Prod
+      StageName: prod
 
 Outputs:
   ApiEndpoint:
     Description: "Endpoint URL for API"
-    Value: !Sub "https://${BirthdayPresentTrackerApi}.execute-api.${AWS::Region}.amazonaws.com/Prod/birthdays"
-
-  
-
-
-
-
-  
+    Value: !Sub "https://${BirthdayPresentTrackerApi}.execute-api.${AWS::Region}.amazonaws.com/prod/birthdays"
