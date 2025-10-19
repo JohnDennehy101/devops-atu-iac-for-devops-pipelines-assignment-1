@@ -9,11 +9,12 @@ on:
 
 jobs:
   deploy_on_pull_request:
+    name: "Deploy dev environment"
     if: github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize')
     uses: ./.github/workflows/deploy-lambda.yml
     with:
       stack_name: BirthdayPresentTracker-PR-${{ github.event.pull_request.number || github.event.number }}
-      environment: Staging-${{ github.event.pull_request.number || github.event.number }}
+      environment: Dev
       s3_bucket_name: birthday-present-tracker-lambda-deployment-bucket
       lambda_zip_file: birthday_present_lambda.zip
     secrets:
@@ -23,6 +24,7 @@ jobs:
       DB_ADMIN_PASSWORD: ${{ secrets.DB_ADMIN_PASSWORD }}
 
   delete_pr_stack:
+    name: "Delete dev environment"
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
     steps:
@@ -40,6 +42,7 @@ jobs:
           aws cloudformation wait stack-delete-complete --stack-name $STACK_NAME
 
   deploy_to_production:
+    name: "Deploy prod environment"
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     uses: ./.github/workflows/deploy-lambda.yml
     with:
