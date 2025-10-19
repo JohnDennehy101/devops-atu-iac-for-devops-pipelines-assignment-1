@@ -188,6 +188,7 @@ Resources:
     
   BirthdayPresentTrackerRDSInstance:
     Type: AWS::RDS::DBInstance
+    DependsOn: BirthdayPresentTrackerSecretsManagerEndpoint
     DeletionPolicy:
       Fn::If:
         - IsDevEnvironment
