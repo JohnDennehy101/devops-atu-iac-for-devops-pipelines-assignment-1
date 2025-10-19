@@ -69,9 +69,6 @@ jobs:
           aws s3 cp ${{inputs.lambda_zip_file}} s3://${{inputs.s3_bucket_name}}/${{inputs.lambda_zip_file}}
           echo "Packaged code for lambda uploaded successfully"
 
-      - name: Install AWS CLI
-        uses: aws-actions/aws-cli@v2
-
       - name: Deploy CloudFormation Stack (${{inputs.stack_name}})
         run: |
           aws cloudformation deploy \
