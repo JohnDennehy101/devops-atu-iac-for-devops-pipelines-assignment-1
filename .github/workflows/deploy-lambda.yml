@@ -1,0 +1,78 @@
+name: Deployment of infrastructure for Birthday Tracker API (Lambda)
+
+on:
+  workflow_call:
+    inputs:
+      stack_name:
+        required: true
+        type: string
+        description: Cloudformation stack name
+      environment:
+        required: true
+        type: string
+        description: Env name used in API Gateway stage
+      s3_bucket_name:
+        required: true
+        type: string
+      lambda_zip_file:
+        required: true
+        type: string
+
+jobs:
+  deploy_cloudformation_stack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Package code for Lambda
+        run: |
+          echo "Installing pymysql dependency"
+          mkdir -p package
+          pip install pymysql -t package/
+          echo "Zipping artefact: ${{inputs.lambda_zip_file}}"
+          cp index.py package/
+          cd package
+          zip -r ../${{inputs.lambda_zip_file}} .
+
+      - name: Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{env.AWS_ACCESS_KEY_ID}}
+          aws-secret-access-key: ${{env.AWS_SECRET_ACCESS_KEY}}
+          aws-region: ${{env.AWS_REGION}}
+
+      - name: Ensure S3 bucket exists
+        run: |
+          if ! aws s3 ls "s3://${{ inputs.s3_bucket_name }}" 2>/dev/null; then
+            echo "Bucket does not exist. Creating..."
+            aws s3 mb s3://${{inputs.s3_bucket_name}} --no-cli-pager
+          else
+            echo "Bucket already exists"
+          fi
+      - name: Upload code for Lambda to S3 bucket
+        run: |
+          aws s3 cp ${{inputs.lambda_zip_file}} s3://${{inputs.s3_bucket_name}}/${{inputs.lambda_zip_file}}
+          echo "Packaged code for lambda uploaded successfully"
+
+      - name: Deploy CloudFormation Stack (${{inputs.stack_name}})
+        uses: aws-actions/aws-cloudformation-deploy@v1
+        with:
+          name: ${{inputs.stack_name}}
+          template: l00196611-lambda-api.yaml
+          capabilities: CAPABILITY_NAMED_IAM
+
+          parameter-overrides: |
+            LambdaCodeBucket=${{inputs.s3_bucket_name}}
+            LambdaCodeKey=${{inputs.lambda_zip_file}}
+            DBUsername=admin
+            DBName=birthdayDb
+            LambdaRuntime=python3.12
+            LambdaArchitecture=x86_64
+            DBPassword=${{env.DB_ADMIN_PASSWORD}}
+            EnvironmentName=${{inputs.environment}}

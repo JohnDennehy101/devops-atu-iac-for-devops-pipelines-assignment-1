@@ -30,6 +30,18 @@ Parameters:
     AllowedValues:
       - x86_64
       - arm64
+  LambdaCodeBucket:
+    Description: Name of S3 bucket where Lambda deployment package is stored
+    Type: String
+  LambdaCodeBucketKey:
+    Description: File name within s3 bucket for the Lambda deployment python package
+    Type: String
+  EnvironmentName:
+    Description: Environment in use for API Gateway (Dev / Prod)
+    Type: String
+    AllowedValues:
+      - Dev
+      - Prod
 
 Mappings:
   PythonRuntimeToLayer:
@@ -220,8 +232,10 @@ Resources:
           DB_HOST: !GetAtt BirthdayPresentTrackerRDSInstance.Endpoint.Address
           DB_SECRET_NAME: !Ref BirthdayPresentTrackerDBSecret
       Code:
-        S3Bucket: birthday-present-tracker-lambda-deployment-bucket
-        S3Key: birthday_present_lambda.zip
+        # S3Bucket: birthday-present-tracker-lambda-deployment-bucket
+        # S3Key: birthday_present_lambda.zip
+        S3Bucket: !Ref LambdaCodeBucket
+        S3Key: !Ref LambdaCodeBucketKey
     
   BirthdayPresentTrackerApi:
     Type: AWS::ApiGateway::RestApi
@@ -263,9 +277,9 @@ Resources:
       - BirthdayPresentTrackerGetMethod
     Properties:
       RestApiId: !Ref BirthdayPresentTrackerApi
-      StageName: prod
+      StageName: !Ref EnvironmentName
 
 Outputs:
   ApiEndpoint:
     Description: "Endpoint URL for API"
-    Value: !Sub "https://${BirthdayPresentTrackerApi}.execute-api.${AWS::Region}.amazonaws.com/prod/birthdays"
+    Value: !Sub "https://${BirthdayPresentTrackerApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}/birthdays"
