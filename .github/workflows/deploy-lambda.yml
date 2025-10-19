@@ -77,7 +77,7 @@ jobs:
             --capabilities CAPABILITY_NAMED_IAM \
             --parameter-overrides \
               LambdaCodeBucket=${{ inputs.s3_bucket_name }} \
-              LambdaCodeKey=${{ inputs.lambda_zip_file }} \
+              LambdaCodeBucketKey=${{ inputs.lambda_zip_file }} \
               DBUsername=admin \
               DBName=birthdayDb \
               LambdaRuntime=python3.12 \
