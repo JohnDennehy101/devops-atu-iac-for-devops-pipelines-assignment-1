@@ -15,6 +15,7 @@ zip -r ../birthday_present_tracker_lambda.zip .
 Upload to s3 manually (manual creation of bucket and then upload of zipped directory from above)
 
 ```
+cd ..
 aws s3 mb s3://birthday-present-tracker-lambda-deployment-bucket
 aws s3 cp birthday_present_tracker_lambda.zip s3://birthday-present-tracker-lambda-deployment-bucket/birthday_present_lambda.zip
 ```
