@@ -69,19 +69,21 @@ jobs:
           aws s3 cp ${{inputs.lambda_zip_file}} s3://${{inputs.s3_bucket_name}}/${{inputs.lambda_zip_file}}
           echo "Packaged code for lambda uploaded successfully"
 
-      - name: Deploy CloudFormation Stack (${{inputs.stack_name}})
-        uses: aws-actions/aws-cloudformation-deploy@v1
-        with:
-          name: ${{inputs.stack_name}}
-          template: l00196611-lambda-api.yaml
-          capabilities: CAPABILITY_NAMED_IAM
+      - name: Install AWS CLI
+        uses: aws-actions/aws-cli@v2
 
-          parameter-overrides: |
-            LambdaCodeBucket=${{inputs.s3_bucket_name}}
-            LambdaCodeKey=${{inputs.lambda_zip_file}}
-            DBUsername=admin
-            DBName=birthdayDb
-            LambdaRuntime=python3.12
-            LambdaArchitecture=x86_64
-            DBPassword=${{secrets.DB_ADMIN_PASSWORD}}
-            EnvironmentName=${{inputs.environment}}
+      - name: Deploy CloudFormation Stack (${{inputs.stack_name}})
+        run: |
+          aws cloudformation deploy \
+            --stack-name ${{ inputs.stack_name }} \
+            --template-file l00196611-lambda-api.yaml \
+            --capabilities CAPABILITY_NAMED_IAM \
+            --parameter-overrides \
+              LambdaCodeBucket=${{ inputs.s3_bucket_name }} \
+              LambdaCodeKey=${{ inputs.lambda_zip_file }} \
+              DBUsername=admin \
+              DBName=birthdayDb \
+              LambdaRuntime=python3.12 \
+              LambdaArchitecture=x86_64 \
+              DBPassword=${{ secrets.DB_ADMIN_PASSWORD }} \
+              EnvironmentName=${{ inputs.environment }}
