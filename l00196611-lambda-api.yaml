@@ -188,7 +188,9 @@ Resources:
     
   BirthdayPresentTrackerRDSInstance:
     Type: AWS::RDS::DBInstance
-    DependsOn: BirthdayPresentTrackerSecretsManagerEndpoint
+    DependsOn: 
+      - BirthdayPresentTrackerSecretsManagerEndpoint
+      - BirthdayPresentTrackerDBSecret
     DeletionPolicy:
       Fn::If:
         - IsDevEnvironment
@@ -213,7 +215,7 @@ Resources:
       DBInstanceClass: db.t3.micro
       Engine: mysql
       MasterUsername: !Ref DBUsername
-      MasterUserPassword: '{{resolve:secretsmanager:BirthdayPresentTrackerDBSecret:SecretString:password}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:BirthdayPresentTrackerDBSecret${ResourceSuffix}:SecretString:password}}'
       DBName: !Ref DBName
       VPCSecurityGroups:
         - !GetAtt BirthdayPresentTrackerRDSSecurityGroup.GroupId
