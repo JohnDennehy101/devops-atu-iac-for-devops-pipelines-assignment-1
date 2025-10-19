@@ -1,0 +1,57 @@
+name: Deploy Birthday Present Tracker API on AWS
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    types: [opened, synchronize, closed]
+
+jobs:
+  deploy_on_pull_request:
+    name: "Deploy dev environment"
+    if: github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize')
+    uses: ./.github/workflows/deploy-lambda.yml
+    with:
+      stack_name: BirthdayPresentTracker-PR-${{ github.event.pull_request.number || github.event.number }}
+      environment: Dev
+      s3_bucket_name: birthday-present-tracker-lambda-deployment-bucket
+      lambda_zip_file: birthday_present_lambda.zip
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      DB_ADMIN_PASSWORD: ${{ secrets.DB_ADMIN_PASSWORD }}
+
+  delete_pr_stack:
+    name: "Delete dev environment"
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+      - name: Delete PR CloudFormation stack
+        run: |
+          STACK_NAME=BirthdayPresentTracker-PR-${{ github.event.pull_request.number || github.event.number }}
+          echo "Deleting stack $STACK_NAME"
+          aws cloudformation delete-stack --stack-name $STACK_NAME
+          aws cloudformation wait stack-delete-complete --stack-name $STACK_NAME
+
+  deploy_to_production:
+    name: "Deploy prod environment"
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    uses: ./.github/workflows/deploy-lambda.yml
+    with:
+      stack_name: BirthdayPresentTracker-Prod
+      environment: Prod
+      s3_bucket_name: birthday-present-tracker-lambda-deployment-bucket
+      lambda_zip_file: birthday_present_lambda.zip
+    secrets:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+      AWS_REGION: ${{ secrets.AWS_REGION }}
+      DB_ADMIN_PASSWORD: ${{ secrets.DB_ADMIN_PASSWORD }}
