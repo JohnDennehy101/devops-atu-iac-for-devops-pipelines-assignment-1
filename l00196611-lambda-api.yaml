@@ -42,6 +42,16 @@ Parameters:
     AllowedValues:
       - Dev
       - Prod
+  ResourceSuffix:
+    Description: Append this to resource names in dev env to avoid clashes between dev and prod envs
+    Type: String
+    Default: ""
+
+Conditions:
+  IsDevEnvironment:
+    Fn::Equals:
+      - !Ref EnvironmentName
+      - Dev
 
 Mappings:
   PythonRuntimeToLayer:
@@ -139,10 +149,25 @@ Resources:
   
   BirthdayPresentTrackerDBSecret:
     Type: AWS::SecretsManager::Secret
-    DeletionPolicy: Delete
-    UpdateReplacePolicy: Delete
+    DeletionPolicy:
+      Fn::If:
+        - IsDevEnvironment
+        - Delete
+        - Retain
+    UpdateReplacePolicy:
+      Fn::If:
+        - IsDevEnvironment
+        - Delete
+        - Retain
     Properties:
-      Name: BirthdayPresentTrackerDBSecret
+      Name:
+        Fn::Sub:
+          - "BirthdayPresentTrackerDBSecret${Suffix}"
+          - Suffix:
+              Fn::If:
+                - IsDevEnvironment
+                - !Ref ResourceSuffix
+                - ""
       Description: RDS credentials for Birthday Present Tracker DB in use for API
       SecretString: !Sub '{"username": "${DBUsername}", "password": "${DBPassword}", "dbname": "${DBName}"}'
   
@@ -163,16 +188,34 @@ Resources:
     
   BirthdayPresentTrackerRDSInstance:
     Type: AWS::RDS::DBInstance
-    DeletionPolicy: Delete
-    UpdateReplacePolicy: Delete
+    DependsOn: 
+      - BirthdayPresentTrackerSecretsManagerEndpoint
+      - BirthdayPresentTrackerDBSecret
+    DeletionPolicy:
+      Fn::If:
+        - IsDevEnvironment
+        - Delete
+        - Retain
+    UpdateReplacePolicy:
+      Fn::If:
+        - IsDevEnvironment
+        - Delete
+        - Retain
     Properties:
-      DBInstanceIdentifier: birthday-present-tracker-database
+      DBInstanceIdentifier: 
+        Fn::Sub:
+          - "birthday-present-tracker-database${Suffix}"
+          - Suffix:
+              Fn::If:
+                - IsDevEnvironment
+                - !Ref ResourceSuffix
+                - ""
       DBSubnetGroupName: !Ref BirthdayPresentTrackerDBSubnetGroup
       AllocatedStorage: 20
       DBInstanceClass: db.t3.micro
       Engine: mysql
       MasterUsername: !Ref DBUsername
-      MasterUserPassword: '{{resolve:secretsmanager:BirthdayPresentTrackerDBSecret:SecretString:password}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:BirthdayPresentTrackerDBSecret${ResourceSuffix}:SecretString:password}}'
       DBName: !Ref DBName
       VPCSecurityGroups:
         - !GetAtt BirthdayPresentTrackerRDSSecurityGroup.GroupId
@@ -185,7 +228,14 @@ Resources:
   BirthdayPresentTrackerLambdaRole:
     Type: AWS::IAM::Role
     Properties:
-      RoleName: BirthdayPresentTrackerLambdaExecutionRole
+      RoleName: 
+        Fn::Sub:
+        - "BirthdayPresentTrackerLambdaExecutionRole${Suffix}"
+        - Suffix:
+            Fn::If:
+              - IsDevEnvironment
+              - !Ref ResourceSuffix
+              - ""
       AssumeRolePolicyDocument:
         Version: '2012-10-17'
         Statement:
@@ -209,7 +259,14 @@ Resources:
   BirthdayPresentTrackerLambda:
     Type: AWS::Lambda::Function
     Properties:
-      FunctionName: BirthdayPresentTrackerApiHandler
+      FunctionName: 
+        Fn::Sub: 
+          - "BirthdayPresentTrackerApiHandler${Suffix}"
+          - Suffix:
+              Fn::If:
+                - IsDevEnvironment
+                - !Ref ResourceSuffix
+                - ""
       Runtime: !Ref LambdaRuntime
       Handler: index.lambda_handler
       Role: !GetAtt BirthdayPresentTrackerLambdaRole.Arn
@@ -232,15 +289,20 @@ Resources:
           DB_HOST: !GetAtt BirthdayPresentTrackerRDSInstance.Endpoint.Address
           DB_SECRET_NAME: !Ref BirthdayPresentTrackerDBSecret
       Code:
-        # S3Bucket: birthday-present-tracker-lambda-deployment-bucket
-        # S3Key: birthday_present_lambda.zip
         S3Bucket: !Ref LambdaCodeBucket
         S3Key: !Ref LambdaCodeBucketKey
     
   BirthdayPresentTrackerApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
-      Name: BirthdayPresentTrackerApi
+      Name: 
+        Fn::Sub:
+          - "BirthdayPresentTrackerApi${Suffix}"
+          - Suffix:
+              Fn::If:
+                - IsDevEnvironment
+                - !Ref ResourceSuffix
+                - ""
       Description: API returning dummy data from db
       EndpointConfiguration:
         Types: ["REGIONAL"]

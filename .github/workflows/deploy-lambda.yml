@@ -17,6 +17,10 @@ on:
       lambda_zip_file:
         required: true
         type: string
+      resource_suffix:
+        required: true
+        type: string
+        description: Appended to end of resource names to ensure uniqueness (for dev env)
     secrets:
       AWS_ACCESS_KEY_ID:
         required: true
@@ -83,4 +87,5 @@ jobs:
               LambdaRuntime=python3.12 \
               LambdaArchitecture=x86_64 \
               DBPassword=${{ secrets.DB_ADMIN_PASSWORD }} \
-              EnvironmentName=${{ inputs.environment }}
+              EnvironmentName=${{ inputs.environment }} \
+              ResourceSuffix=${{ inputs.resource_suffix }}
