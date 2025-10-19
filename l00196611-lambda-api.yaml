@@ -14,6 +14,33 @@ Parameters:
     Description: Name of the RDS database
     Type: String
     Default: birthdayDb
+  LambdaRuntime:
+    Description: Python version in use
+    Type: String
+    Default: python3.12
+    AllowedValues:
+      - python3.9
+      - python3.10
+      - python3.11
+      - python3.12
+  LambdaArchitecture:
+    Description: OS used for Lambda Powertools
+    Type: String
+    Default: x86_64
+    AllowedValues:
+      - x86_64
+      - arm64
+
+Mappings:
+  PythonRuntimeToLayer:
+    python3.9:
+      Layer: python39
+    python3.10: 
+      Layer: python310
+    python3.11: 
+      Layer: python311
+    python3.12: 
+      Layer: python312
 
 
 Resources:
@@ -167,12 +194,11 @@ Resources:
                   - secretsmanager:GetSecretValue
                 Resource: !Ref BirthdayPresentTrackerDBSecret
 
-
   BirthdayPresentTrackerLambda:
     Type: AWS::Lambda::Function
     Properties:
       FunctionName: BirthdayPresentTrackerApiHandler
-      Runtime: python3.12
+      Runtime: !Ref LambdaRuntime
       Handler: index.lambda_handler
       Role: !GetAtt BirthdayPresentTrackerLambdaRole.Arn
       VpcConfig:
@@ -182,6 +208,13 @@ Resources:
         SecurityGroupIds:
           - !Ref BirthdayPresentTrackerLambdaSecurityGroup
       Timeout: 15
+      Layers:
+          - Fn::Sub:
+            - arn:${Partition}:lambda:${Region}:017000801446:layer:AWSLambdaPowertoolsPythonV3-${Layer}-${Architecture}:18
+            - Partition: !Ref AWS::Partition
+              Region: !Ref AWS::Region
+              Layer: !FindInMap [PythonRuntimeToLayer, !Ref LambdaRuntime, Layer]
+              Architecture: !Ref LambdaArchitecture
       Environment:
         Variables:
           DB_HOST: !GetAtt BirthdayPresentTrackerRDSInstance.Endpoint.Address
