@@ -404,7 +404,7 @@ Resources:
       - BirthdayPresentTrackerDeleteMethod
     Properties:
       RestApiId: !Ref BirthdayPresentTrackerApi
-      StageName: !Ref EnvironmentName
+      StageName: !FindInMap [LowercaseEnvironment, !Ref EnvironmentName, Name]
       Description: !Sub "Deployed with descriptor: ${DeploymentId}"
 
 Outputs:

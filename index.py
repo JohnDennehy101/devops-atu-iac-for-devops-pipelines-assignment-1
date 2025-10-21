@@ -8,7 +8,7 @@ from botocore.exceptions import ClientError
 from aws_lambda_powertools import Logger, Tracer, Metrics
 from aws_lambda_powertools.metrics import MetricUnit
 from aws_lambda_powertools.logging import correlation_paths
-from datetime import datetime
+from datetime import datetime, date
 
 connection = None
 logger = Logger(service="BirthdayPresentTracker")
@@ -57,10 +57,15 @@ def seed_db(conn):
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)
     """)
     cursor.execute("SELECT COUNT(*) AS count from birthdays;")
-    if cursor.fetchone()["count"] == 0:
+    if cursor.fetchone()[0] == 0:
       cursor.execute("INSERT INTO birthdays (name, birthday, idea) VALUES ('John Dennehy', '1994-05-12', 'AWS Course');")
     
     conn.commit()
+
+def convert_date_for_output(date_object):
+  if isinstance(date_object, (date, datetime)):
+    return date_object.isoformat()
+  raise TypeError("Type {} not serializable".format(type(date_object)))
 
 def validate_date(date_str):
   try:
@@ -110,7 +115,7 @@ def get_handler(db_connection):
     return {
       "statusCode": 200,
       "headers": {"Content-Type": "application/json"},
-      "body": json.dumps(results)
+      "body": json.dumps(results, default=convert_date_for_output)
       }
   except Exception as e:
     logger.exception("DB Query failed: {}".format(str(e)))
