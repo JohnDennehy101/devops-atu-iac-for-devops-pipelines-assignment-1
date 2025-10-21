@@ -6,14 +6,24 @@ Parameters:
     Description: Username used in interactions with RDS instance
     Type: String
     Default: admin
+    MinLength: 1
+    MaxLength: 16
+    AllowedPattern: '^[a-zA-Z][a-zA-Z0-9_]*$'
+    ConstraintDescription: "Must start with a letter. Only alphanumeric characters, underscores permitted"
   DBPassword:
     Description: Password used for user to access RDS database instance
     Type: String
     NoEcho: true
+    MinLength: 8
+    MaxLength: 40
+    AllowedPattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@#$_!%*?&\-])[A-Za-z\d@#$_!%*?&\-]{8,40}$'
+    ConstraintDescription: "8-40 characters, must contain uppercase, lowercase, number, and one special char from (@#$_!%*?&-)"
   DBName:
     Description: Name of the RDS database
     Type: String
     Default: birthdayDb
+    AllowedPattern: '^[a-zA-Z0-9_]+$'
+    ConstraintDescription: "Only alphanumeric characters, underscores permitted"
   LambdaRuntime:
     Description: Python version in use
     Type: String
@@ -33,9 +43,16 @@ Parameters:
   LambdaCodeBucket:
     Description: Name of S3 bucket where Lambda deployment package is stored
     Type: String
+    MinLength: 3
+    MaxLength: 63
+    AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$'
+    ConstraintDescription: "Must be valid s3 bucket name - lowercase letters, numbers, full stops, dashes"
   LambdaCodeBucketKey:
     Description: File name within s3 bucket for the Lambda deployment python package
     Type: String
+    MinLength: 1
+    AllowedPattern: '^(?!/)[^\s]+$'
+    ConstraintDescription: "Cannot be empty, cannot start with /, spaces not allowed"
   EnvironmentName:
     Description: Environment in use for API Gateway (Dev / Prod)
     Type: String
@@ -46,10 +63,14 @@ Parameters:
     Description: Append this to resource names in dev env to avoid clashes between dev and prod envs
     Type: String
     Default: ""
+    AllowedPattern: '^[a-zA-Z0-9-]*$'
+    ConstraintDescription: "Only letters, numbers, dashes allowed"
   DeploymentId:
     Description: Versioning to force API deployment on each push
     Type: String
-    Default: "v1"
+    Default: "1"
+    AllowedPattern: '^[0-9]+$'
+    ConstraintDescription: "Must be numeric"
 
 Conditions:
   IsDevEnvironment:
