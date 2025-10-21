@@ -46,6 +46,10 @@ Parameters:
     Description: Append this to resource names in dev env to avoid clashes between dev and prod envs
     Type: String
     Default: ""
+  DeploymentId:
+    Description: Versioning to force API deployment on each push
+    Type: String
+    Default: "v1"
 
 Conditions:
   IsDevEnvironment:
@@ -389,6 +393,7 @@ Resources:
       FunctionName: !Ref BirthdayPresentTrackerLambda
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${BirthdayPresentTrackerApi}/*/*"
   
   BirthdayPresentTrackerApiDeployment:
     Type: AWS::ApiGateway::Deployment
@@ -400,6 +405,7 @@ Resources:
     Properties:
       RestApiId: !Ref BirthdayPresentTrackerApi
       StageName: !Ref EnvironmentName
+      Description: !Sub "Deployed with descriptor: ${DeploymentId}"
 
 Outputs:
   ApiEndpoint:

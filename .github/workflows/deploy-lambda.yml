@@ -73,6 +73,10 @@ jobs:
           aws s3 cp ${{inputs.lambda_zip_file}} s3://${{inputs.s3_bucket_name}}/${{inputs.lambda_zip_file}}
           echo "Packaged code for lambda uploaded successfully"
 
+      - name: Set deployment timestamp
+        id: set_timestamp
+        run: echo "timestamp=$(date +%s)" >> $GITHUB_OUTPUT
+
       - name: Deploy CloudFormation Stack (${{inputs.stack_name}})
         run: |
           aws cloudformation deploy \
@@ -88,4 +92,5 @@ jobs:
               LambdaArchitecture=x86_64 \
               DBPassword=${{ secrets.DB_ADMIN_PASSWORD }} \
               EnvironmentName=${{ inputs.environment }} \
-              ResourceSuffix=${{ inputs.resource_suffix }}
+              ResourceSuffix=${{ inputs.resource_suffix }} \
+              DeploymentId=${{ steps.set_timestamp.outputs.timestamp }}
