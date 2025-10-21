@@ -46,6 +46,10 @@ Parameters:
     Description: Append this to resource names in dev env to avoid clashes between dev and prod envs
     Type: String
     Default: ""
+  DeploymentId:
+    Description: Versioning to force API deployment on each push
+    Type: String
+    Default: "v1"
 
 Conditions:
   IsDevEnvironment:
@@ -63,6 +67,11 @@ Mappings:
       Layer: python311
     python3.12: 
       Layer: python312
+  LowercaseEnvironment:
+    Dev:
+      Name: dev
+    Prod:
+      Name: prod
 
 
 Resources:
@@ -324,7 +333,59 @@ Resources:
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
-        Uri: !Sub arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${BirthdayPresentTrackerLambda.Arn}/invocations
+        Uri:
+          Fn::Sub:
+          - arn:${AWS::Partition}:apigateway:${Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+          - Region: !Ref "AWS::Region"
+            LambdaArn: !GetAtt BirthdayPresentTrackerLambda.Arn
+  
+  BirthdayPresentTrackerPutMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref BirthdayPresentTrackerApi
+      ResourceId: !Ref BirthdayPresentTrackerResource
+      HttpMethod: PUT
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri:
+          Fn::Sub:
+          - arn:${AWS::Partition}:apigateway:${Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+          - Region: !Ref "AWS::Region"
+            LambdaArn: !GetAtt BirthdayPresentTrackerLambda.Arn
+  
+  BirthdayPresentTrackerPostMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref BirthdayPresentTrackerApi
+      ResourceId: !Ref BirthdayPresentTrackerResource
+      HttpMethod: POST
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri:
+          Fn::Sub:
+          - arn:${AWS::Partition}:apigateway:${Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+          - Region: !Ref "AWS::Region"
+            LambdaArn: !GetAtt BirthdayPresentTrackerLambda.Arn
+
+  BirthdayPresentTrackerDeleteMethod:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId: !Ref BirthdayPresentTrackerApi
+      ResourceId: !Ref BirthdayPresentTrackerResource
+      HttpMethod: DELETE
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS_PROXY
+        IntegrationHttpMethod: POST
+        Uri:
+          Fn::Sub:
+          - arn:${AWS::Partition}:apigateway:${Region}:lambda:path/2015-03-31/functions/${LambdaArn}/invocations
+          - Region: !Ref "AWS::Region"
+            LambdaArn: !GetAtt BirthdayPresentTrackerLambda.Arn
   
   LambdaInvokePermission:
     Type: AWS::Lambda::Permission
@@ -332,16 +393,26 @@ Resources:
       FunctionName: !Ref BirthdayPresentTrackerLambda
       Action: lambda:InvokeFunction
       Principal: apigateway.amazonaws.com
+      SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${BirthdayPresentTrackerApi}/*/*"
   
   BirthdayPresentTrackerApiDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
       - BirthdayPresentTrackerGetMethod
+      - BirthdayPresentTrackerPostMethod
+      - BirthdayPresentTrackerPutMethod
+      - BirthdayPresentTrackerDeleteMethod
     Properties:
       RestApiId: !Ref BirthdayPresentTrackerApi
-      StageName: !Ref EnvironmentName
+      StageName: !FindInMap [LowercaseEnvironment, !Ref EnvironmentName, Name]
+      Description: !Sub "Deployed with descriptor: ${DeploymentId}"
 
 Outputs:
   ApiEndpoint:
     Description: "Endpoint URL for API"
-    Value: !Sub "https://${BirthdayPresentTrackerApi}.execute-api.${AWS::Region}.amazonaws.com/${EnvironmentName}/birthdays"
+    Value: 
+      Fn::Sub:
+      - "https://${ApiId}.execute-api.${Region}.amazonaws.com/${Env}/birthdays"
+      - ApiId: !Ref BirthdayPresentTrackerApi
+        Region: !Ref "AWS::Region"
+        Env: !FindInMap [LowercaseEnvironment, !Ref EnvironmentName, Name]
