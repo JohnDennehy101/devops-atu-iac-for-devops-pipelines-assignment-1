@@ -401,7 +401,6 @@ Resources:
           "properties": {
             "id": {
               "type": "integer",
-              "minimum": 1
             },
             "name": {
               "type": "string",
@@ -439,8 +438,7 @@ Resources:
           "type": "object",
           "properties": {
             "id": {
-              "type": "integer",
-              "minimum": 1
+              "type": "integer"
             }
           },
           "required": ["id"]
@@ -471,6 +469,7 @@ Resources:
       AuthorizationType: NONE
       RequestModels:
         "application/json": !Ref BirthdayPresentTrackerPutRequestModel
+      RequestValidatorId: !Ref BirthdayPresentTrackerRequestValidator
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -489,6 +488,7 @@ Resources:
       AuthorizationType: NONE
       RequestModels:
         "application/json": !Ref BirthdayPresentTrackerPostRequestModel
+      RequestValidatorId: !Ref BirthdayPresentTrackerRequestValidator
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -507,6 +507,7 @@ Resources:
       AuthorizationType: NONE
       RequestModels:
         "application/json": !Ref BirthdayPresentTrackerDeleteRequestModel
+      RequestValidatorId: !Ref BirthdayPresentTrackerRequestValidator
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
