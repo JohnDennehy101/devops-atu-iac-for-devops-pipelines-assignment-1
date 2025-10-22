@@ -224,7 +224,7 @@ def lambda_handler(event, context):
     except json.JSONDecodeError:
       return {
         "statusCode": 400,
-        "body": json.dumps({"error", "invalid JSON payload"})
+        "body": json.dumps({"error": "invalid JSON payload"})
       }
     
     if method == "POST":
