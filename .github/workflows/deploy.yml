@@ -1,5 +1,7 @@
 name: Deploy Birthday Present Tracker API on AWS
 
+# Trigger on push to main (merged in)
+# Also trigger on pull request events
 on:
   push:
     branches:
@@ -8,6 +10,7 @@ on:
     types: [opened, synchronize, closed]
 
 jobs:
+  # If pull request opened, deploy 'Dev' environment (to ensure user can review changes before merging in)
   deploy_on_pull_request:
     name: "Deploy dev environment"
     if: github.event_name == 'pull_request' && (github.event.action == 'opened' || github.event.action == 'synchronize')
@@ -24,6 +27,7 @@ jobs:
       AWS_REGION: ${{ secrets.AWS_REGION }}
       DB_ADMIN_PASSWORD: ${{ secrets.DB_ADMIN_PASSWORD }}
 
+  # Once PR merged in, delete Dev environment stack (to tidy up AWS resources)
   delete_pr_stack:
     name: "Delete dev environment"
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
@@ -42,6 +46,7 @@ jobs:
           aws cloudformation delete-stack --stack-name $STACK_NAME
           aws cloudformation wait stack-delete-complete --stack-name $STACK_NAME
 
+  # Once PR merged in, deploy to Prod environment to ensure production is updated with latest changes (continuous delivery)
   deploy_to_production:
     name: "Deploy prod environment"
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

@@ -24,16 +24,182 @@ aws s3 cp birthday_present_tracker_lambda.zip s3://birthday-present-tracker-lamb
 
 ### GET
 
-TODO - add detail
+Returns a list of all records
+
+```
+$APIEndpoint/birthdays
+```
+
+Sample success response
+
+Response code: 200
+
+```
+[{"id": 1, "name": "John Dennehy", "birthday": "1994-05-10", "idea": "AWS Course", "link": null, "created_at": "2025-10-21T10:10:51"}]
+```
 
 ### POST
 
-TODO - add detail
+Adds a new record
+
+```
+$APIEndpoint/birthdays
+```
+
+Sample Payload
+
+```
+{
+  "name": "Alice Smith",
+  "birthday": "1990-07-15",
+  "idea": "Book",
+  "link": "https://example.com/book"
+}
+```
+
+Sample Success Response
+
+Response code: 201
+
+```
+{
+  "message": "Record created successfully",
+  "id": 2
+}
+```
+
+Sample error response, empty payload
+
+Response code: 400
+
+```
+{
+  "error": "invalid JSON payload"
+}
+```
+
+Sample error response, invalid payload
+
+Response code: 400
+
+```
+{
+  "errors": ["Missing name"]
+}
+```
 
 ### PUT
 
-TODO - add detail
+Updates an existing record
+
+```
+$APIEndpoint/birthdays
+```
+
+Sample payload
+
+```
+{
+  "id": 1,
+  "name": "John D",
+  "birthday": "1994-07-25",
+  "idea": "AWS Course Updated",
+  "link": "https://example.com/aws-course"
+}
+```
+
+Sample success Response
+
+Response code: 200
+
+```
+{
+  "message": "Record updated"
+}
+```
+
+Sample error response, empty payload
+
+Response code: 400
+
+```
+{
+  "error": "invalid JSON payload"
+}
+```
+
+Sample error response, invalid payload
+
+Response code: 400
+
+```
+{
+  "errors": ["Missing name"]
+}
+```
+
+Sample error response, record not found
+
+Response code: 404
+
+```
+{
+  "error": {"Record not found"}
+}
+```
 
 ### DELETE
 
-TODO - add detail
+Deletes an existing record
+
+```
+$APIEndpoint/birthdays
+```
+
+Sample payload
+
+```
+{
+  "id": 1
+}
+```
+
+Sample success response
+
+Response code: 200
+
+```
+{
+  "message": "Record deleted"
+}
+```
+
+Sample error response, empty payload
+
+Response code: 400
+
+```
+{
+  "error": "invalid JSON payload"
+}
+```
+
+Sample error response, invalid payload
+
+Response code: 400
+
+```
+{
+  "error": {"Missing 'id' for delete"}
+}
+```
+
+Sample error response, record not found
+
+Response code: 404
+
+```
+{
+  "error": {"Record not found"}
+}
+```

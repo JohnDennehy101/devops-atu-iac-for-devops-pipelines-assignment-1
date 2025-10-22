@@ -1,27 +1,34 @@
 name: Deployment of infrastructure for Birthday Tracker API (Lambda)
 
+# All params must be provided to trigger
 on:
   workflow_call:
     inputs:
+      # Stack name to be used in Cloudformation within AWS
       stack_name:
         required: true
         type: string
         description: Cloudformation stack name
+      # Environment name to be used
       environment:
         required: true
         type: string
         description: Env name used in API Gateway stage
+      # S3 bucket name where code should be uploaded
       s3_bucket_name:
         required: true
         type: string
+      # Name of file that should be uploaded to s3 bucket
       lambda_zip_file:
         required: true
         type: string
+      # Appended to resource titles in AWS to ensure uniqueness (and avoid clashes)
       resource_suffix:
         required: true
         type: string
         description: Appended to end of resource names to ensure uniqueness (for dev env)
     secrets:
+      # Secrets are required to authenticate to AWS
       AWS_ACCESS_KEY_ID:
         required: true
       AWS_SECRET_ACCESS_KEY:
@@ -32,6 +39,7 @@ on:
         required: true
 
 jobs:
+  # This job first packages the code, uploads to s3 bucket, then calls the cloudformation stack
   deploy_cloudformation_stack:
     runs-on: ubuntu-latest
     steps:

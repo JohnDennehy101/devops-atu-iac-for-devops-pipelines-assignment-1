@@ -1,7 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Birthday Present Tracker API with dummy data
+Description: Birthday Present Tracker API
 
+# Inputs provided to template on creation / update
 Parameters:
+  # Default username for db, allow user to provide if they wish to have a different one in place
+  # Validation in place to satisfy db format
   DBUsername:
     Description: Username used in interactions with RDS instance
     Type: String
@@ -10,6 +13,8 @@ Parameters:
     MaxLength: 16
     AllowedPattern: '^[a-zA-Z][a-zA-Z0-9_]*$'
     ConstraintDescription: "Must start with a letter. Only alphanumeric characters, underscores permitted"
+  # User must provide password to be used for RDS db interaction, satisfies RDS db constraints
+  # Note NoEcho to prevent this being outputted in logs etc.
   DBPassword:
     Description: Password used for user to access RDS database instance
     Type: String
@@ -18,12 +23,14 @@ Parameters:
     MaxLength: 40
     AllowedPattern: '^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@#$_!%*?&\-])[A-Za-z\d@#$_!%*?&\-]{8,40}$'
     ConstraintDescription: "8-40 characters, must contain uppercase, lowercase, number, and one special char from (@#$_!%*?&-)"
+  # Also allow custom db name, default if not provided
   DBName:
     Description: Name of the RDS database
     Type: String
     Default: birthdayDb
     AllowedPattern: '^[a-zA-Z0-9_]+$'
     ConstraintDescription: "Only alphanumeric characters, underscores permitted"
+  # This is for lambda power tools, default to 3.12, allow other earlier versions if user wants one of those
   LambdaRuntime:
     Description: Python version in use
     Type: String
@@ -33,6 +40,7 @@ Parameters:
       - python3.10
       - python3.11
       - python3.12
+  # Also related to lambda power tools, can provision them via windows / mac
   LambdaArchitecture:
     Description: OS used for Lambda Powertools
     Type: String
@@ -40,6 +48,9 @@ Parameters:
     AllowedValues:
       - x86_64
       - arm64
+  # S3 bucket name where the code for lambda is to be stored
+  # Github pipeline creates this before this template is run
+  # If run from aws console, assumption that user has created bucket before provisioning this template
   LambdaCodeBucket:
     Description: Name of S3 bucket where Lambda deployment package is stored
     Type: String
@@ -47,24 +58,28 @@ Parameters:
     MaxLength: 63
     AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$'
     ConstraintDescription: "Must be valid s3 bucket name - lowercase letters, numbers, full stops, dashes"
+  # File name where code is stored within s3 bucket
   LambdaCodeBucketKey:
     Description: File name within s3 bucket for the Lambda deployment python package
     Type: String
     MinLength: 1
     AllowedPattern: '^(?!/)[^\s]+$'
     ConstraintDescription: "Cannot be empty, cannot start with /, spaces not allowed"
+  # Support for different environments (dev / prod) to simulate different conditions between envs in template (e.g. retention policies etc)
   EnvironmentName:
     Description: Environment in use for API Gateway (Dev / Prod)
     Type: String
     AllowedValues:
       - Dev
       - Prod
+  # Used in dev environment to ensure unique titles for resources (avoids clashes on multiple runs)
   ResourceSuffix:
     Description: Append this to resource names in dev env to avoid clashes between dev and prod envs
     Type: String
     Default: ""
     AllowedPattern: '^[a-zA-Z0-9-]*$'
     ConstraintDescription: "Only letters, numbers, dashes allowed"
+  # This is used to ensure API gateway provisions on any change (as otherwise, it doesn't re-provision)
   DeploymentId:
     Description: Versioning to force API deployment on each push
     Type: String
@@ -72,12 +87,15 @@ Parameters:
     AllowedPattern: '^[0-9]+$'
     ConstraintDescription: "Must be numeric"
 
+# Define a condition to determine if environment is dev / prod (True if Dev, False if Prod)
 Conditions:
   IsDevEnvironment:
     Fn::Equals:
       - !Ref EnvironmentName
       - Dev
 
+# Define a mapping for python versions to lambda tool version string format
+# Also define a lowercase mapping for environments
 Mappings:
   PythonRuntimeToLayer:
     python3.9:
@@ -95,7 +113,9 @@ Mappings:
       Name: prod
 
 
+# Define resources in use within the template
 Resources:
+  # Create private VPC, note /16 subnet
   BirthdayPresentTrackerVPC:
     Type: AWS::EC2::VPC
     Properties:
@@ -103,6 +123,8 @@ Resources:
       EnableDnsSupport: true
       EnableDnsHostnames: true
   
+  # First subnet - slash 24 subnet
+  # Note first availability zone in current region selected
   BirthdayPresentTrackerSubnetA:
     Type: AWS::EC2::Subnet
     Properties:
@@ -114,6 +136,8 @@ Resources:
       CidrBlock: 10.0.1.0/24
       MapPublicIpOnLaunch: true
   
+  # Second subnet - slash 24 subnet
+  # Note second availability zone in current region selected
   BirthdayPresentTrackerSubnetB:
     Type: AWS::EC2::Subnet
     Properties:
@@ -125,6 +149,7 @@ Resources:
       CidrBlock: 10.0.2.0/24
       MapPublicIpOnLaunch: true
   
+  # Subnet group with both subnets included
   BirthdayPresentTrackerDBSubnetGroup:
     Type: AWS::RDS::DBSubnetGroup
     Properties:
@@ -133,12 +158,14 @@ Resources:
         - !Ref BirthdayPresentTrackerSubnetA
         - !Ref BirthdayPresentTrackerSubnetB
   
+  # Security group for Lambda
   BirthdayPresentTrackerLambdaSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Lambda security group with outbound access
       VpcId: !Ref BirthdayPresentTrackerVPC
   
+  # Define egress rules for lambda (note anything allowed outbound)
   BirthdayPresentTrackerLambdaSecurityGroupEgress:
     Type: AWS::EC2::SecurityGroupEgress
     Properties:
@@ -146,12 +173,14 @@ Resources:
       IpProtocol: -1
       CidrIp: 0.0.0.0/0
   
+  # Security group for RDS database
   BirthdayPresentTrackerRDSSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security Group for RDS MySQL
       VpcId: !Ref BirthdayPresentTrackerVPC
   
+  # Limit ingress to only port 3306 (MySql) for resources with Lambda security group
   BirthdayPresentTrackerRDSIngress:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -161,13 +190,14 @@ Resources:
       ToPort: 3306
       SourceSecurityGroupId: !Ref BirthdayPresentTrackerLambdaSecurityGroup
   
+  # Security group for Secret Manager VPC endpoint
   BirthdayPresentTrackerSecretsManagerEndpointSecurityGroup:
     Type: AWS::EC2::SecurityGroup
     Properties:
       GroupDescription: Security Group for Secrets Manager VPC Endpoint
       VpcId: !Ref BirthdayPresentTrackerVPC
 
-  
+  # Ingress only allows port 443 from resources with lambda security group attached
   BirthdayPresentTrackerSecretsManagerIngress:
     Type: AWS::EC2::SecurityGroupIngress
     Properties:
@@ -177,6 +207,9 @@ Resources:
       ToPort: 443
       SourceSecurityGroupId: !Ref BirthdayPresentTrackerLambdaSecurityGroup
   
+  # DB secret which is stored in secrets manager service
+  # Note retention if Prod, deletion if Dev
+  # Stores the db credentials securely
   BirthdayPresentTrackerDBSecret:
     Type: AWS::SecretsManager::Secret
     DeletionPolicy:
@@ -201,6 +234,10 @@ Resources:
       Description: RDS credentials for Birthday Present Tracker DB in use for API
       SecretString: !Sub '{"username": "${DBUsername}", "password": "${DBPassword}", "dbname": "${DBName}"}'
   
+
+  # VPC endpoint for secrets manager service
+  # Needed to allow lambda to access secrets manager service as within private VPC
+  # Note security group attached here to limit services
   BirthdayPresentTrackerSecretsManagerEndpoint:
     Type: AWS::EC2::VPCEndpoint
     DeletionPolicy: Delete
@@ -215,7 +252,10 @@ Resources:
         - !Ref BirthdayPresentTrackerSubnetB
       SecurityGroupIds:
         - !Ref BirthdayPresentTrackerSecretsManagerEndpointSecurityGroup
-    
+  
+  # RDS db instance
+  # Note depends on to ensure that secrets manager work has been completed before referencing
+  # Again different retention and deletion policies based on environment
   BirthdayPresentTrackerRDSInstance:
     Type: AWS::RDS::DBInstance
     DependsOn: 
@@ -255,6 +295,9 @@ Resources:
       DeletionProtection: false
       MultiAZ: false
   
+  # Custom role needed for lambda to access services
+  # Keep basic role as this includes Cloudwatch logs
+  # Needs VPC access role as within a VPC
   BirthdayPresentTrackerLambdaRole:
     Type: AWS::IAM::Role
     Properties:
@@ -286,6 +329,9 @@ Resources:
                   - secretsmanager:GetSecretValue
                 Resource: !Ref BirthdayPresentTrackerDBSecret
 
+  # Lambda where Python code is executed
+  # Note use of Layers to load in Lambda power tools (metrics, logging, tracing)
+  # This is also where files are loaded from s3 for accessing the Python code 
   BirthdayPresentTrackerLambda:
     Type: AWS::Lambda::Function
     Properties:
@@ -321,7 +367,8 @@ Resources:
       Code:
         S3Bucket: !Ref LambdaCodeBucket
         S3Key: !Ref LambdaCodeBucketKey
-    
+  
+  # Rest API Gateway instance
   BirthdayPresentTrackerApi:
     Type: AWS::ApiGateway::RestApi
     Properties:
@@ -337,6 +384,7 @@ Resources:
       EndpointConfiguration:
         Types: ["REGIONAL"]
   
+  # Api gateway resource which maps the API path
   BirthdayPresentTrackerResource:
     Type: AWS::ApiGateway::Resource
     Properties:
@@ -344,6 +392,8 @@ Resources:
       ParentId: !GetAtt BirthdayPresentTrackerApi.RootResourceId
       PathPart: birthdays
   
+  # GET method for API
+  # Note the proxy call to trigger the Lambda
   BirthdayPresentTrackerGetMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -360,6 +410,8 @@ Resources:
           - Region: !Ref "AWS::Region"
             LambdaArn: !GetAtt BirthdayPresentTrackerLambda.Arn
   
+  # PUT method for API
+  # Note the proxy call to trigger the Lambda
   BirthdayPresentTrackerPutMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -376,6 +428,8 @@ Resources:
           - Region: !Ref "AWS::Region"
             LambdaArn: !GetAtt BirthdayPresentTrackerLambda.Arn
   
+  # POST method for API
+  # Note the proxy call to trigger the Lambda
   BirthdayPresentTrackerPostMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -392,6 +446,8 @@ Resources:
           - Region: !Ref "AWS::Region"
             LambdaArn: !GetAtt BirthdayPresentTrackerLambda.Arn
 
+  # DELETE method for API
+  # Note the proxy call to trigger the Lambda
   BirthdayPresentTrackerDeleteMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -408,6 +464,7 @@ Resources:
           - Region: !Ref "AWS::Region"
             LambdaArn: !GetAtt BirthdayPresentTrackerLambda.Arn
   
+  # Add permission to trigger the lambda from the API
   LambdaInvokePermission:
     Type: AWS::Lambda::Permission
     Properties:
@@ -416,6 +473,7 @@ Resources:
       Principal: apigateway.amazonaws.com
       SourceArn: !Sub "arn:${AWS::Partition}:execute-api:${AWS::Region}:${AWS::AccountId}:${BirthdayPresentTrackerApi}/*/*"
   
+  # Deploy the API with all methods attached
   BirthdayPresentTrackerApiDeployment:
     Type: AWS::ApiGateway::Deployment
     DependsOn:
@@ -428,6 +486,8 @@ Resources:
       StageName: !FindInMap [LowercaseEnvironment, !Ref EnvironmentName, Name]
       Description: !Sub "Deployed with descriptor: ${DeploymentId}"
 
+# Define outputs on completion of provisioning, currently just output the api endpoint url for testing
+# Note substitution within url, dev / prod used depending on environment
 Outputs:
   ApiEndpoint:
     Description: "Endpoint URL for API"
