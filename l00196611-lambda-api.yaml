@@ -344,6 +344,108 @@ Resources:
       ParentId: !GetAtt BirthdayPresentTrackerApi.RootResourceId
       PathPart: birthdays
   
+  BirthdayPresentTrackerRequestValidator:
+    Type: AWS::ApiGateway::RequestValidator
+    Properties:
+      RestApiId: !Ref BirthdayPresentTrackerApi
+      Name: Validate parameters and payloads
+      ValidateRequestBody: true
+      ValidateRequestParameters: true
+  
+  BirthdayPresentTrackerPostRequestModel:
+    Type: AWS::ApiGateway::Model
+    Properties:
+      RestApiId: !Ref BirthdayPresentTrackerApi
+      Name: BirthdayPresentTrackerPostRequestModel
+      ContentType: application/json
+      Schema:
+        {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "title": "BirthdayPresentTrackerPostModel",
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "maxLength": 200,
+              "minLength": 1
+            },
+            "birthday": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+              "description": Date of birth in YYYY-MM-DD format
+            },
+            "idea": {
+              "type": "string",
+              "maxLength": 200,
+              "minLength": 1
+            },
+            "link": {
+              "type": "string",
+              "maxLength": 400
+            }
+          },
+          "required": ["name", "birthday", "idea"]
+        }
+
+  BirthdayPresentTrackerPutRequestModel:
+    Type: AWS::ApiGateway::Model
+    Properties:
+      RestApiId: !Ref BirthdayPresentTrackerApi
+      Name: BirthdayPresentTrackerPutRequestModel
+      ContentType: application/json
+      Schema:
+        {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "title": "BirthdayPresentTrackerPutModel",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "name": {
+              "type": "string",
+              "maxLength": 200,
+              "minLength": 1
+            },
+            "birthday": {
+              "type": "string",
+              "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+              "description": Date of birth in YYYY-MM-DD format
+            },
+            "idea": {
+              "type": "string",
+              "maxLength": 200,
+              "minLength": 1
+            },
+            "link": {
+              "type": "string",
+              "maxLength": 400
+            }
+          },
+          "required": ["id", "name", "birthday", "idea"]
+        }
+  
+  BirthdayPresentTrackerDeleteRequestModel:
+    Type: AWS::ApiGateway::Model
+    Properties:
+      RestApiId: !Ref BirthdayPresentTrackerApi
+      Name: BirthdayPresentTrackerDeleteRequestModel
+      ContentType: application/json
+      Schema:
+        {
+          "$schema": "http://json-schema.org/draft-04/schema#",
+          "title": "BirthdayPresentTrackerDeleteModel",
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": ["id"]
+        }
+  
   BirthdayPresentTrackerGetMethod:
     Type: AWS::ApiGateway::Method
     Properties:
@@ -367,6 +469,8 @@ Resources:
       ResourceId: !Ref BirthdayPresentTrackerResource
       HttpMethod: PUT
       AuthorizationType: NONE
+      RequestModels:
+        "application/json": !Ref BirthdayPresentTrackerPutRequestModel
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -383,6 +487,8 @@ Resources:
       ResourceId: !Ref BirthdayPresentTrackerResource
       HttpMethod: POST
       AuthorizationType: NONE
+      RequestModels:
+        "application/json": !Ref BirthdayPresentTrackerPostRequestModel
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
@@ -399,6 +505,8 @@ Resources:
       ResourceId: !Ref BirthdayPresentTrackerResource
       HttpMethod: DELETE
       AuthorizationType: NONE
+      RequestModels:
+        "application/json": !Ref BirthdayPresentTrackerDeleteRequestModel
       Integration:
         Type: AWS_PROXY
         IntegrationHttpMethod: POST
