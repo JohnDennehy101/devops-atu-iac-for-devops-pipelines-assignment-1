@@ -225,7 +225,7 @@ Resources:
     Properties:
       Name:
         Fn::Sub:
-          - "BirthdayPresentTrackerDBSecret${Suffix}"
+          - "BirthdayPresentTrackerDBSecret${Suffix}-${DeploymentId}"
           - Suffix:
               Fn::If:
                 - IsDevEnvironment
@@ -285,7 +285,7 @@ Resources:
       DBInstanceClass: db.t3.micro
       Engine: mysql
       MasterUsername: !Ref DBUsername
-      MasterUserPassword: !Sub '{{resolve:secretsmanager:BirthdayPresentTrackerDBSecret${ResourceSuffix}:SecretString:password}}'
+      MasterUserPassword: !Sub '{{resolve:secretsmanager:BirthdayPresentTrackerDBSecret${ResourceSuffix}-${DeploymentId}:SecretString:password}}'
       DBName: !Ref DBName
       VPCSecurityGroups:
         - !GetAtt BirthdayPresentTrackerRDSSecurityGroup.GroupId
