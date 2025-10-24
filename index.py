@@ -10,13 +10,24 @@ from aws_lambda_powertools.metrics import MetricUnit
 from aws_lambda_powertools.logging import correlation_paths
 from datetime import datetime, date
 
+# Global variable for db connection
 connection = None
+
+# Instantiate lambda power tools, logging, tracing, metrics
+# Used throughout the different functions to makes sense to define at top of file
 logger = Logger(service="BirthdayPresentTracker")
 tracer = Tracer(service="BirthdayPresentTracker")
 metrics = Metrics(namespace="BirthdayPresentTracker", service="API")
 
 @tracer.capture_method
 def get_db_credentials(secret_name: str, region_name: str):
+  """
+  This function attempts to access the db credentials stored in AWS secrets manager
+  Raises error if not possible to do so
+  Returns secret values if successful
+  """
+
+  # Use of boto3 package to communicate with AWS secrets manager service
   client = boto3.client("secretsmanager", region_name=region_name)
   try:
     response = client.get_secret_value(SecretId=secret_name)
@@ -30,6 +41,14 @@ def get_db_credentials(secret_name: str, region_name: str):
 
 @tracer.capture_method
 def get_db_connection(credentials):
+  """
+  This function attempts a connection to the RDS database instance using pymysql package
+  If successful return connection instance
+  If error raise Exception
+  """
+
+  # Note use of global variable for the connection to ensure that user uses same DB connection for interactions
+  # Rather than opening a new connection on each request
   global connection
   try:
     if connection is None or not connection.open:
@@ -46,6 +65,10 @@ def get_db_connection(credentials):
     raise
 
 def seed_db(conn):
+  """
+  This function seeds the database with the expected schema and inserts a sample entry if none present
+  """
+
   with conn.cursor() as cursor:
     cursor.execute("""
       CREATE TABLE IF NOT EXISTS birthdays(
@@ -63,17 +86,30 @@ def seed_db(conn):
     conn.commit()
 
 def convert_date_for_output(date_object):
+  """
+  Convert the date into a string for output in JSON
+  """
+
   if isinstance(date_object, (date, datetime)):
     return date_object.isoformat()
   raise TypeError("Type {} not serializable".format(type(date_object)))
 
 def validate_date(date_str):
+  """
+  Validate the date has been passed in a valid string format
+  """
+
   try:
     return datetime.strptime(date_str, "%Y-%m-%d").date()
   except ValueError:
     return None
 
 def validate_payload(data):
+  """
+  This function validates the payload for POST and PUT requests
+  Returns an array of errors and the converted birthday date
+  """
+
   errors = []
   birthday_date = None
 
@@ -105,6 +141,11 @@ def validate_payload(data):
 
 @tracer.capture_method
 def get_handler(db_connection):
+  """
+  This function is triggered on GET request to the lambda
+  Returns a list of all database records
+  """
+
   try:
     with db_connection.cursor(DictCursor) as cursor:
       cursor.execute("SELECT * FROM birthdays;")
@@ -124,6 +165,11 @@ def get_handler(db_connection):
 
 @tracer.capture_method()
 def post_handler(db_connection, data):
+  """
+  This function is triggered on POST request to the lambda
+  Creates a new resource, returns the new database record id if successful
+  """
+
   errors, birthday_date = validate_payload(data)
   if errors:
     return {"statusCode": 400, "body": json.dumps({"errors": errors})}
@@ -143,6 +189,11 @@ def post_handler(db_connection, data):
 
 @tracer.capture_method()
 def put_handler(db_connection, data):
+  """
+  This function is triggered on PUT request to the lambda
+  Updates an existing resource, informs the user if successful
+  """
+
   if "id" not in data:
     return {
       "statusCode": 400, 
@@ -177,6 +228,11 @@ def put_handler(db_connection, data):
 
 @tracer.capture_method()
 def delete_handler(db_connection, data):
+  """
+  This function is triggered on DELETE request to the lambda
+  Deletes an existing resource, informs the user if successful
+  """
+
   if "id" not in data:
     return {
       "statusCode": 400, 
@@ -205,19 +261,28 @@ def delete_handler(db_connection, data):
 @tracer.capture_lambda_handler
 @metrics.log_metrics
 def lambda_handler(event, context):
+  """
+  This is the entry point for the Lambda, first code to be triggered
+  """
+
   global connection
   secret_name = os.environ["DB_SECRET_NAME"]
   region_name = os.environ["AWS_REGION"]
 
   try:
+    # Get the database credentials, open a connection to database, seed database
     credentials = get_db_credentials(secret_name, region_name)
     db_connection = get_db_connection(credentials)
     seed_db(db_connection)
 
+    # This contains all relevant info in the request, including request type and request payload
     method = event["httpMethod"]
+
+    # Check is on request method, trigger relevant function based on request type
     if method == "GET":
       return get_handler(db_connection)
     
+    # If not a GET request, payload is expected
     try:
       raw_data = event.get("body", "{}")
       data = json.loads(raw_data)
@@ -233,12 +298,14 @@ def lambda_handler(event, context):
       return put_handler(db_connection, data)
     elif method == "DELETE":
       return delete_handler(db_connection, data)
+    # If unsupported method, inform user gracefully
     else:
       return {
         "statusCode": 405,
         "body": json.dumps({"error": "Method not allowed"})
       }
 
+  # Generic 500 response if any error when triggering any of the above
   except Exception as e:
     logger.exception("Unhandled exception")
     return {
